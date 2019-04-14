@@ -1,4 +1,3 @@
 packer/ansible/galaxy
-terraform/state/
 .terraform/
 *.retry
