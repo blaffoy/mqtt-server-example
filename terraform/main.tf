@@ -34,13 +34,6 @@ resource "aws_route_table" "private_rt" {
   vpc_id = "${aws_vpc.main.id}"
 }
 
-resource "aws_route" "private_route" {
-  count                  = "${var.num_azs}"
-  route_table_id         = "${element(aws_route_table.private_rt.*.id,count.index)}"
-  destination_cidr_block = "0.0.0.0/0"
-  depends_on             = ["aws_route_table.private_rt"]
-}
-
 resource "aws_route_table_association" "private_rta" {
   count          = "${var.num_azs}"
   subnet_id      = "${element(aws_subnet.private_subnet.*.id,count.index)}"
