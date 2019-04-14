@@ -98,6 +98,94 @@ resource "aws_route_table_association" "public_rta" {
   route_table_id = "${aws_default_route_table.public_rt.id}"
 }
 
+resource "aws_security_group" "bastion" {
+    name = "vpc_bastion"
+    description = "Allow incoming ssh connections."
+
+    ingress {
+        from_port = 22
+        to_port = 22
+        protocol = "tcp"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    egress {
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    vpc_id = "${aws_vpc.main.id}"
+}
+
+resource "aws_security_group" "private" {
+    name = "vpc_private"
+    description = "Allow connections to private subnet"
+
+    ingress {
+        from_port = 22
+        to_port = 22
+        protocol = "tcp"
+        security_groups = ["${aws_security_group.bastion.id}"]
+    }
+
+    egress {
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+
+
+    vpc_id = "${aws_vpc.main.id}"
+}
+
+resource "aws_key_pair" "bastion_key" {
+  key_name   = "bastion_key"
+  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC0y8xWZCi9AC5P/LDzmW7PgXhQk6I2TYfXzdFok1sEbTkujZRfpcgxPuXS+fzLU/fxTE+3XK1KClpsiai+vl+KufoALx29cM61hzAxK+SZlbj0GCrbO2AKo/s6gRNY53KokD/7w2zPxTkao3k1UBDXFfWf6bDDJcZJH7y20EAoeDRQD7mfRqyEqt3W7er6Y+X2rNlmoxhCvKr5QwwJRn8+iI+Uioz4/gq1hxfxG4tlqks/Qn7j9zw1ClMdo+EDbhSko7IbqqlRHmge4ZOAD6KpqRdIl2Rv3lbheRRKDCR/FaCff3g0IjoQMkCWVc9N7vsNhDhu7JHTbFGOl0ADXqkb"
+}
+
+data "aws_ami" "bastion_image" {
+  most_recent = "true"
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-xenial-16.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  owners = ["099720109477"]
+}
+
+resource "aws_launch_configuration" "bastion_lc" {
+  associate_public_ip_address = true
+  image_id                    = "${data.aws_ami.bastion_image.id}"
+  instance_type               = "t2.micro"
+  key_name                    = "bastion_key"
+  security_groups             = ["${aws_security_group.bastion.id}"]
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_autoscaling_group" "bastion_asg" {
+  name                      = "bastion_asg"
+  max_size                  = "1"
+  min_size                  = "1"
+  health_check_grace_period = 300
+  health_check_type         = "ELB"
+  desired_capacity          = "1"
+  force_delete              = true
+  launch_configuration      = "${aws_launch_configuration.bastion_lc.name}"
+  vpc_zone_identifier       = ["${aws_subnet.public_subnet.*.id}"]
+}
+
 data "aws_ami" "mqtt_image" {
   most_recent = "true"
 
@@ -115,10 +203,15 @@ data "aws_ami" "mqtt_image" {
 }
 
 resource "aws_launch_configuration" "mqtt_lc" {
-  name                        = "mqtt_server"
   associate_public_ip_address = false
   image_id                    = "${data.aws_ami.mqtt_image.id}"
   instance_type               = "${var.mqtt_instance_type}"
+  key_name                    = "bastion_key"
+  security_groups             = ["${aws_security_group.private.id}", "${aws_security_group.mqtt_sg.id}"]
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_autoscaling_group" "mqtt_asg" {
@@ -179,11 +272,32 @@ resource "aws_alb_listener" "mqtt_listener" {
   }
 }
 
+resource "aws_security_group" "mqtt_sg" {
+    name = "vpc_mqtt_sg"
+    description = "Allow incoming ssh connections."
+
+    ingress {
+        from_port = 0
+        to_port = 0
+        protocol = "tcp"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    egress {
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    vpc_id = "${aws_vpc.main.id}"
+}
+
 resource "aws_lb" "mqtt_nlb" {
   name               = "mqtt-load-balancer"
   internal           = false
   load_balancer_type = "network"
   subnets            = ["${aws_subnet.public_subnet.*.id}"]
 
-  enable_deletion_protection = true
+  enable_deletion_protection = false
 }
