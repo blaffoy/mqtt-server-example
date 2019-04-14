@@ -1,0 +1,16 @@
+---
+- name: setup
+  hosts: all
+  gather_facts: no
+  pre_tasks:
+  - name: waiting 180 seconds for cloud-init to update /etc/apt/sources.list
+    raw: timeout 180 /bin/bash -c 'until stat /var/lib/cloud/instance/boot-finished 2>/dev/null; do echo waiting ...; sleep 1; done'
+  - name: Install python on remote server
+    raw: sudo apt-get install -y python
+
+- name: mosquitto server
+  become: yes
+  hosts: all
+  roles:
+  - geerlingguy.pip
+  - lnovara.mosquitto
