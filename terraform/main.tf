@@ -15,6 +15,24 @@ resource "aws_vpc" "main" {
   cidr_block = "${var.vpc_cidr}"
 }
 
+resource "aws_default_security_group" "default" {
+  vpc_id = "${aws_vpc.main.id}"
+
+  ingress {
+    protocol  = -1
+    self      = true
+    from_port = 0
+    to_port   = 0
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
 data "aws_availability_zones" "azs" {}
 
 resource "aws_subnet" "private_subnet" {
@@ -130,6 +148,20 @@ resource "aws_security_group" "private" {
         security_groups = ["${aws_security_group.bastion.id}"]
     }
 
+    ingress {
+        from_port = 1883
+        to_port = 1883
+        protocol = "tcp"
+        security_groups = ["${aws_security_group.bastion.id}"]
+    }
+
+    ingress {
+        from_port = 1883
+        to_port = 1883
+        protocol = "tcp"
+        security_groups = ["${aws_default_security_group.default.id}"]
+    }
+
     egress {
       from_port   = 0
       to_port     = 0
@@ -207,7 +239,7 @@ resource "aws_launch_configuration" "mqtt_lc" {
   image_id                    = "${data.aws_ami.mqtt_image.id}"
   instance_type               = "${var.mqtt_instance_type}"
   key_name                    = "bastion_key"
-  security_groups             = ["${aws_security_group.private.id}", "${aws_security_group.mqtt_sg.id}"]
+  security_groups             = ["${aws_security_group.private.id}", "${aws_default_security_group.default.id}"]
 
   lifecycle {
     create_before_destroy = true
@@ -270,27 +302,6 @@ resource "aws_alb_listener" "mqtt_listener" {
     target_group_arn = "${aws_alb_target_group.mqtt_target.arn}"
     type             = "forward"
   }
-}
-
-resource "aws_security_group" "mqtt_sg" {
-    name = "vpc_mqtt_sg"
-    description = "Allow incoming ssh connections."
-
-    ingress {
-        from_port = 0
-        to_port = 0
-        protocol = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
-    }
-
-    egress {
-      from_port   = 0
-      to_port     = 0
-      protocol    = "-1"
-      cidr_blocks = ["0.0.0.0/0"]
-    }
-
-    vpc_id = "${aws_vpc.main.id}"
 }
 
 resource "aws_lb" "mqtt_nlb" {
