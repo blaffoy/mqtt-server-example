@@ -1,6 +1,6 @@
 ---
 - name: setup
-  hosts: all
+  hosts: node
   gather_facts: no
   pre_tasks:
   - name: waiting 180 seconds for cloud-init to update /etc/apt/sources.list
@@ -10,10 +10,15 @@
 
 - name: mosquitto server
   become: yes
-  hosts: all
+  hosts: node
   roles:
   - geerlingguy.pip
   - lnovara.mosquitto
-  service:
-    name: mosquitto
-    enabled: yes
+  tasks:
+  - name: ensure mosquitto systemd service is enabled
+    service:
+      name: mosquitto
+      enabled: yes
+  # ansible service enabled not working properly, so enabling manually by raw
+  - name: enforce mosquitto systemd service start
+    raw: sudo systemctl enable mosquitto
