@@ -30,7 +30,7 @@ For simplicity, this project has been implemented with a local backend. Future d
 
 ## terraform variables
 
-Terraform variables can be s
+Easy terraform variables are set in the file `environment/default.tfvars`. To deploy yourself, update that file, or create a new environment. `vpc_zone_identifier` must be set.
 
 
 ```
@@ -51,4 +51,24 @@ variable "mqtt_instance_type" {
   description = "(Optional) AWS EC2 instance type to launch the MQTT server on"
   default     = "t2.micro"
 }
+```
+
+## Terraform commands
+
+To initialise the terraform project
+
+```
+terraform init terraform
+```
+
+To create a terraform plan in `./.terraform/terraform.tfplan` with variables in `./environment/default.tfvars`
+
+```
+terraform plan -var-file environment/default.tfvars -out .terraform/terraform.tfplan terraform/
+```
+
+To apply this plan to your AWS account
+
+```
+terraform apply ".terraform/terraform.tfplan"
 ```
