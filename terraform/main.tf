@@ -40,6 +40,31 @@ resource "aws_route_table_association" "private_rta" {
   route_table_id = "${element(aws_route_table.private_rt.*.id, count.index)}"
 }
 
+resource "aws_eip" "nat_eips" {
+  count = "${var.num_azs}"
+  vpc = true
+}
+
+resource "aws_nat_gateway" "default_ngw" {
+  count         = "${var.num_azs}"
+  allocation_id = "${element(aws_eip.nat_eips.*.id,count.index)}"
+  subnet_id     = "${element(aws_subnet.public_subnet.*.id,count.index)}"
+
+  depends_on = ["aws_internet_gateway.default_igw"]
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_route" "private_route" {
+  count                  = "${var.num_azs}"
+  route_table_id         = "${element(aws_route_table.private_rt.*.id,count.index)}"
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = "${element(aws_nat_gateway.default_ngw.*.id,count.index)}"
+  depends_on             = ["aws_route_table.private_rt"]
+}
+
 resource "aws_internet_gateway" "default_igw" {
   vpc_id = "${aws_vpc.main.id}"
 
@@ -124,4 +149,41 @@ resource "aws_autoscaling_group" "mqtt_asg" {
       propagate_at_launch = false
     },
   ]
+}
+
+resource "aws_alb_target_group" "mqtt_target" {
+  port                 = "${var.mosquitto_instance_port}"
+  protocol             = "TCP"
+  deregistration_delay = "60"
+
+  vpc_id = "${aws_vpc.main.id}"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_autoscaling_attachment" "mqtt_asg_attachment" {
+  autoscaling_group_name = "${aws_autoscaling_group.mqtt_asg.id}"
+  alb_target_group_arn   = "${aws_alb_target_group.mqtt_target.arn}"
+}
+
+resource "aws_alb_listener" "mqtt_listener" {
+  load_balancer_arn = "${aws_lb.mqtt_nlb.arn}"
+  port              = "${var.mqtt_lb_port}"
+  protocol          = "TCP"
+
+  default_action {
+    target_group_arn = "${aws_alb_target_group.mqtt_target.arn}"
+    type             = "forward"
+  }
+}
+
+resource "aws_lb" "mqtt_nlb" {
+  name               = "mqtt-load-balancer"
+  internal           = false
+  load_balancer_type = "network"
+  subnets            = ["${aws_subnet.public_subnet.*.id}"]
+
+  enable_deletion_protection = true
 }

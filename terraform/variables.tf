@@ -38,3 +38,15 @@ variable "asg_desired_capacity" {
   description = "Desired number of MQTT servers to run"
   default     = "1"
 }
+
+variable "mosquitto_instance_port" {
+  type        = "string"
+  description = "Default listener port of mosquitto instances"
+  default     = "1883"
+}
+
+variable "mqtt_lb_port" {
+  type        = "string"
+  description = "Default port of MQTT load balancer"
+  default     = "8883"
+}
