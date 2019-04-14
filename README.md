@@ -23,3 +23,7 @@ For simplicity, I've used off-the-shelf ansible roles to set up the AMI (kudos t
 ```
 $ make build
 ```
+
+# Deploying terraform
+
+For simplicity, this project has been implemented with a local backend. Future development to make more production-ready will use S3 backend
