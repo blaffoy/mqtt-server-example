@@ -27,3 +27,28 @@ $ make build
 # Deploying terraform
 
 For simplicity, this project has been implemented with a local backend. Future development to make more production-ready will use S3 backend
+
+## terraform variables
+
+Terraform variables can be s
+
+
+```
+variable "aws_region" {
+  type        = "string"
+  description = "(Optional) AWS region code"
+  default     = "eu-west-2"
+}
+
+variable "vpc_zone_identifier" {
+  type        = "list"
+  description = "List of subnet IDs to deploy into, this project assumes the existence of a VPC and public subnets"
+  default     = []
+}
+
+variable "mqtt_instance_type" {
+  type        = "string"
+  description = "(Optional) AWS EC2 instance type to launch the MQTT server on"
+  default     = "t2.micro"
+}
+```
