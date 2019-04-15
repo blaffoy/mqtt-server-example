@@ -50,3 +50,7 @@ variable "mqtt_lb_port" {
   description = "Default port of MQTT load balancer"
   default     = "8883"
 }
+
+variable "bastion_public_key" {
+  default = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC0y8xWZCi9AC5P/LDzmW7PgXhQk6I2TYfXzdFok1sEbTkujZRfpcgxPuXS+fzLU/fxTE+3XK1KClpsiai+vl+KufoALx29cM61hzAxK+SZlbj0GCrbO2AKo/s6gRNY53KokD/7w2zPxTkao3k1UBDXFfWf6bDDJcZJH7y20EAoeDRQD7mfRqyEqt3W7er6Y+X2rNlmoxhCvKr5QwwJRn8+iI+Uioz4/gq1hxfxG4tlqks/Qn7j9zw1ClMdo+EDbhSko7IbqqlRHmge4ZOAD6KpqRdIl2Rv3lbheRRKDCR/FaCff3g0IjoQMkCWVc9N7vsNhDhu7JHTbFGOl0ADXqkb"
+}

@@ -137,6 +137,26 @@ resource "aws_security_group" "bastion" {
     vpc_id = "${aws_vpc.main.id}"
 }
 
+resource "aws_security_group" "public" {
+    name = "vpc_public"
+
+    ingress {
+        from_port = "${var.mqtt_lb_port}"
+        to_port = "${var.mqtt_lb_port}"
+        protocol = "tcp"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    egress {
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    vpc_id = "${aws_vpc.main.id}"
+}
+
 resource "aws_security_group" "private" {
     name = "vpc_private"
     description = "Allow connections to private subnet"
@@ -149,17 +169,10 @@ resource "aws_security_group" "private" {
     }
 
     ingress {
-        from_port = 1883
-        to_port = 1883
+        from_port = "${var.mosquitto_instance_port}"
+        to_port = "${var.mosquitto_instance_port}"
         protocol = "tcp"
-        security_groups = ["${aws_security_group.bastion.id}"]
-    }
-
-    ingress {
-        from_port = 1883
-        to_port = 1883
-        protocol = "tcp"
-        security_groups = ["${aws_default_security_group.default.id}"]
+        security_groups = ["${aws_security_group.public.id}"]
     }
 
     egress {
@@ -169,13 +182,12 @@ resource "aws_security_group" "private" {
       cidr_blocks = ["0.0.0.0/0"]
     }
 
-
     vpc_id = "${aws_vpc.main.id}"
 }
 
 resource "aws_key_pair" "bastion_key" {
   key_name   = "bastion_key"
-  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC0y8xWZCi9AC5P/LDzmW7PgXhQk6I2TYfXzdFok1sEbTkujZRfpcgxPuXS+fzLU/fxTE+3XK1KClpsiai+vl+KufoALx29cM61hzAxK+SZlbj0GCrbO2AKo/s6gRNY53KokD/7w2zPxTkao3k1UBDXFfWf6bDDJcZJH7y20EAoeDRQD7mfRqyEqt3W7er6Y+X2rNlmoxhCvKr5QwwJRn8+iI+Uioz4/gq1hxfxG4tlqks/Qn7j9zw1ClMdo+EDbhSko7IbqqlRHmge4ZOAD6KpqRdIl2Rv3lbheRRKDCR/FaCff3g0IjoQMkCWVc9N7vsNhDhu7JHTbFGOl0ADXqkb"
+  public_key = "${var.bastion_public_key}"
 }
 
 data "aws_ami" "bastion_image" {
@@ -276,39 +288,21 @@ resource "aws_autoscaling_group" "mqtt_asg" {
   ]
 }
 
-resource "aws_alb_target_group" "mqtt_target" {
-  port                 = "${var.mosquitto_instance_port}"
-  protocol             = "TCP"
-  deregistration_delay = "60"
-
-  vpc_id = "${aws_vpc.main.id}"
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-resource "aws_autoscaling_attachment" "mqtt_asg_attachment" {
-  autoscaling_group_name = "${aws_autoscaling_group.mqtt_asg.id}"
-  alb_target_group_arn   = "${aws_alb_target_group.mqtt_target.arn}"
-}
-
-resource "aws_alb_listener" "mqtt_listener" {
-  load_balancer_arn = "${aws_lb.mqtt_nlb.arn}"
-  port              = "${var.mqtt_lb_port}"
-  protocol          = "TCP"
-
-  default_action {
-    target_group_arn = "${aws_alb_target_group.mqtt_target.arn}"
-    type             = "forward"
-  }
-}
-
-resource "aws_lb" "mqtt_nlb" {
+resource "aws_elb" "mqtt_lb" {
   name               = "mqtt-load-balancer"
-  internal           = false
-  load_balancer_type = "network"
-  subnets            = ["${aws_subnet.public_subnet.*.id}"]
+  listener {
+    instance_port     = "${var.mosquitto_instance_port}"
+    instance_protocol = "tcp"
+    lb_port           = "${var.mqtt_lb_port}"
+    lb_protocol       = "tcp"
+  }
 
-  enable_deletion_protection = false
+  subnets      = ["${aws_subnet.private_subnet.*.id}"]
+  security_groups = ["${aws_security_group.public.id}"]
+  source_security_group = "${aws_security_group.public.id}"
+}
+
+resource "aws_autoscaling_attachment" "mqtt_asg_lb" {
+  autoscaling_group_name = "${aws_autoscaling_group.mqtt_asg.id}"
+  elb                    = "${aws_elb.mqtt_lb.id}"
 }

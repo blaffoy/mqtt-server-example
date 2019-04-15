@@ -1,5 +1,5 @@
 output "load_balancer_uri" {
-  value = "${aws_lb.mqtt_nlb.dns_name}"
+  value = "${aws_elb.mqtt_lb.dns_name}"
 }
 
 output "nat_eips" {
